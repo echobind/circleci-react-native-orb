@@ -1,0 +1,534 @@
+version: 2.1
+
+description: |
+  "An orb for building React Native applications. Assumes the usage of Fastlane. By default, it:"
+  " * Installs dependencies with yarn and caches them"
+  " * Installs gem dependencies (typically for Fastlane) and caches them"
+  " * Installs gradle dependencies and caches them"
+  " * Runs jest tests via `yarn test:ci`, which is expected to leverage junit reporter like so: `jest --reporters=default --reporters=jest-junit`. This does require jest-junit to be installed as a devDependency."
+  " * Decodes an Android keystore from $ANDROID_ENCODED_KEYSTORE and saves to android.keystore for later use. encode with `cat <path-to-keystore-file> | base64 | pbcopy`"
+  " * Override ENV vars with branch-specific ENV vars if they exist. example: API_URL_BETA or BETA_API_URL would override API_URL (use pre_build hook to override this)"
+  " * Creates an .env file containing current ENV vars for use by react-native-config and others (use pre_build hook to override this)"
+  ""
+  "Other useful features:"
+  " * pre_build, build, and post_build hooks to customize your build process"
+  " * overridable test_steps for jest"
+  ""
+  "Caveats:"
+  " * Assumes that Fastlane will inject signing config for Android via gradle properties and uses the encoded keystore mentioned above."
+  ""
+  "TODO:"
+  " * Detox config coming soon"
+
+examples:
+  ################
+  # Minimal ex.
+  ################
+  minimal_config:
+    description: 'A minimal configuration that leverages the orb defaults'
+    usage:
+      version: 2.1
+      orbs:
+        react-native: echobind/react-native@0.1.0
+      workflows:
+        version: 2
+        main:
+          jobs:
+            - react-native/nod
+            - react-native/android:
+                requires:
+                  - node
+                build:
+                  - run:
+                      name: fastlane adhoc android
+                      working_directory: android
+                      command: bundle exec fastlane adhoc build_number:${CIRCLE_BUILD_NUM}
+            - react-native/ios:
+                requires:
+                  - node
+                build:
+                  - run:
+                      name: fastlane adhoc ios
+                      working_directory: ios
+                      command: bundle exec fastlane adhoc build_number:${CIRCLE_BUILD_NUM}
+  ################
+  # Typical ex.
+  ################
+  typical_config:
+    description: 'A typical setup with alpha, beta, production workflows'
+    usage:
+      version: 2.1
+      orbs:
+        react-native: echobind/react-native@0.1.0
+
+      workflows:
+        version: 2
+
+        ##################################################################
+        # The main workflow, run on push to every branch
+        ##################################################################
+        main:
+          jobs:
+            - react-native/node:
+                name: node
+                filters:
+                  branches:
+                    ignore:
+                      - master
+                      - beta
+                      - production
+
+            - react-native/android:
+                name: android
+                requires:
+                  - node
+                filters:
+                  branches:
+                    ignore:
+                      - master
+                      - beta
+                      - production
+                build:
+                  - run:
+                      name: fastlane adhoc android
+                      working_directory: android
+                      command: bundle exec fastlane adhoc distribute:false build_number:${CIRCLE_BUILD_NUM}
+
+            - react-native/ios:
+                name: ios
+                requires:
+                  - node
+                filters:
+                  branches:
+                    ignore:
+                      - master
+                      - beta
+                      - production
+                build:
+                  - run:
+                      name: fastlane adhoc ios
+                      working_directory: ios
+                      command: bundle exec fastlane adhoc distribute:false build_number:${CIRCLE_BUILD_NUM}
+
+        ##################################################################
+        # The alpha workflow, run on push to master
+        # used for internal testing
+        ##################################################################
+        alpha:
+          jobs:
+            - react-native/node:
+                name: node (alpha)
+                filters:
+                  branches:
+                    only: master
+            - react-native/android:
+                name: android (alpha)
+                requires:
+                  - node (alpha)
+                filters:
+                  branches:
+                    only: master
+                build:
+                  - run:
+                      name: fastlane beta android
+                      working_directory: android
+                      command: |
+                        # APPCENTER_DISTRIBUTE_GROUP=Internal \
+                        APPCENTER_OWNER_NAME=HomeHero \
+                        APPCENTER_APP_NAME=HomeHero-Android \
+                        bundle exec fastlane adhoc build_number:${CIRCLE_BUILD_NUM}
+            - react-native/ios:
+                name: ios (alpha)
+                requires:
+                  - node (alpha)
+                filters:
+                  branches:
+                    only: master
+                build:
+                  - run:
+                      name: fastlane adhoc ios
+                      working_directory: ios
+                      command: |
+                        # Example passing ENV vars to
+                        APPCENTER_DISTRIBUTE_GROUP=Internal \
+                        APPCENTER_OWNER_NAME=MyCompany \
+                        APPCENTER_APP_NAME=MyApp \
+                        bundle exec fastlane adhoc build_number:${CIRCLE_BUILD_NUM}
+
+        ##################################################################
+        # The beta workflow, run on push to beta
+        # used for beta testing
+        ##################################################################
+        beta:
+          jobs:
+            - react-native/node:
+                name: node (beta)
+                filters:
+                  branches:
+                    only: beta
+            - react-native/android:
+                name: android (beta)
+                requires:
+                  - node (beta)
+                filters:
+                  branches:
+                    only: beta
+                build:
+                  - run:
+                      name: fastlane beta android
+                      working_directory: android
+                      command: |
+                        bundle exec fastlane beta build_number:${CIRCLE_BUILD_NUM}
+
+        ##################################################################
+        # The production workflow, run on push to production
+        # used for App Store / Google Play deploy
+        ##################################################################
+        production:
+          jobs:
+            - react-native/node:
+                name: node (production)
+                filters:
+                  branches:
+                    only: production
+            - react-native/android:
+                name: android (production)
+                requires:
+                  - node (production)
+                filters:
+                  branches:
+                    only: production
+                build:
+                  - run:
+                      name: fastlane production android
+                      working_directory: android
+                      command: |
+                        bundle exec fastlane production build_number:${CIRCLE_BUILD_NUM}
+
+################
+# Executors
+################
+executors:
+  node:
+    parameters:
+      version:
+        type: string
+        default: '8'
+    docker:
+      - image: circleci/node:<<parameters.version>>
+    working_directory: ~/react-native
+
+  android:
+    parameters:
+      version:
+        type: string
+        default: '27'
+    environment:
+      FL_OUTPUT_DIR: output
+      _JAVA_OPTIONS: '-Xmx1500m'
+    docker:
+      - image: circleci/android:api-<<parameters.version>>-node8-alpha
+    working_directory: ~/react-native
+
+  ios:
+    parameters:
+      xcode_version:
+        type: string
+        default: '9.4.1'
+    macos:
+      xcode: <<parameters.xcode_version>>
+    working_directory: ~/react-native
+    # use a --login shell so our "set Ruby version" command gets picked up for later steps
+    shell: /bin/bash --login -o pipefail
+
+################
+# Commands
+################
+commands:
+  #################################
+  # Override ENV vars with
+  # branch-specific ENV vars if
+  # they exist.
+  #################################
+  set_branch_specific_env_vars:
+    description: 'Override ENV vars with branch-specific ENV vars if they exist. example: API_URL_BETA or BETA_API_URL would override API_URL'
+    steps:
+      - run:
+          command: |
+            cat \<< 'EOF' \>> /tmp/setEnvVars.js
+            "#!/usr/bin/env node
+            const args = process.argv.slice(2);
+            const branch = args[0];
+            if (!branch) return;
+
+            const uppercasedBranch = branch.toUpperCase();
+            const variables = Object.keys(process.env).filter(e => e.includes(uppercasedBranch));
+
+            variables.forEach((variable, index) => {
+              const newVar = variable.replace(`${uppercasedBranch}_`, '');
+
+              if (process.env[variable]) {
+                process.env[newVar] = process.env[variable];
+                console.log(`adding ${variable} env var to ${newVar}`);
+              }
+            });"
+            EOF
+            node /tmp/setEnvVars.js ${CIRCLE_BRANCH}
+
+  #################################
+  # Yarn install with cache
+  #################################
+  yarn_install_with_cache:
+    description: Runs yarn install. Reads from and saves to a cache.
+    parameters:
+      cache_key:
+        type: string
+        default: v1
+    steps:
+      - restore_cache:
+          key: yarn-<< parameters.cache_key >>-{{ checksum "yarn.lock" }}-{{ arch }}
+
+      - restore_cache:
+          key: node-<< parameters.cache_key >>-{{ checksum "package.json" }}-{{ arch }}
+
+      - run: yarn install
+
+      - save_cache:
+          key: yarn-<< parameters.cache_key >>-{{ checksum "yarn.lock" }}-{{ arch }}
+          paths:
+            - ~/.cache/yarn
+
+      - save_cache:
+          key: node-<< parameters.cache_key >>-{{ checksum "package.json" }}-{{ arch }}
+          paths:
+            - node_modules
+
+      - persist_to_workspace:
+          root: ~/react-native
+          paths:
+            - node_modules
+
+  #################################
+  # Bundle install with cache
+  #################################
+  bundle_install_with_cache:
+    description: Runs bundle install. Reads from and saves to a cache.
+    parameters:
+      cache_key:
+        type: string
+        default: ios-v1
+      working_directory:
+        type: string
+        default: ios
+    steps:
+      - restore_cache:
+          key: bundle-<< parameters.cache_key >>-{{ checksum "<< parameters.working_directory >>/Gemfile.lock" }}-{{ arch }}
+
+      - run:
+          command: bundle install --path vendor/bundle
+          working_directory: << parameters.working_directory >>
+
+      - save_cache:
+          key: bundle-<< parameters.cache_key >>-{{ checksum "<< parameters.working_directory >>/Gemfile.lock" }}-{{ arch }}
+          paths:
+            - << parameters.working_directory >>/vendor/bundle
+
+  #################################
+  # Jest tests
+  #################################
+  jest:
+    description: 'Runs jest'
+    parameters:
+      test_steps:
+        description: Custom test steps for jest and reports. Defaults to using `yarn test:ci` & junit.
+        type: steps
+        default:
+          - run:
+              name: jest tests
+              command: |
+                mkdir -p reports/junit
+                yarn test:ci
+              environment:
+                JEST_JUNIT_OUTPUT: reports/junit/junit.xml
+
+          - store_test_results:
+              path: reports/junit
+
+          - store_artifacts:
+              path: reports/junit
+    steps:
+      - yarn_install_with_cache:
+          cache_key: v1
+      - steps: << parameters.test_steps >>
+
+  #################################
+  # Decode android keystore
+  #################################
+  decode_keystore:
+    description: Decodes an android keystore from ANDROID_ENCODED_KEYSTORE and saves to android.keystore. encode with `cat <path-to-keystore-file> | base64 | pbcopy`
+    steps:
+      - run:
+          name: Decode Keystore
+          working_directory: android
+          command: |
+            echo $ANDROID_ENCODED_KEYSTORE | base64 --decode >> android.keystore
+            # copy 2x for now... RN and gradle both need it?
+            echo $ANDROID_ENCODED_KEYSTORE | base64 --decode >> app/android.keystore
+
+  #################################
+  # Gradle dependencies with cache
+  #################################
+  download_gradle_dependencies_with_cache:
+    description: Downloads dependencies in app/build.gradle
+    parameters:
+      cache_key:
+        type: string
+        default: android-jars-v1
+    steps:
+      - run:
+          name: Check MD5 on files
+          command: |
+            md5sum android/build.gradle
+            md5sum android/app/build.gradle            
+            cat android/app/build.gradle | sed -n -e '/dependencies/,$p' > android.app.build.gradle.deps
+
+      - restore_cache:
+          key: << parameters.cache_key >>-{{ checksum "android/build.gradle" }}-{{ checksum  "android.app.build.gradle.deps" }}
+
+      - run:
+          name: Download Dependencies
+          command: ./gradlew androidDependencies
+          working_directory: android
+
+      - save_cache:
+          key: << parameters.cache_key >>-{{ checksum "android/build.gradle" }}-{{ checksum  "android.app.build.gradle.deps" }}
+          paths:
+            - ~/.gradle
+
+  #################################
+  # Create env file from ENV vars
+  #################################
+  create_env_file_from_vars:
+    description: Creates an .env file containing available env vars (required by react-native-config and others)
+    steps:
+      - run:
+          name: Create .env from vars
+          command: |
+            printf "Creating an .env file:\n"
+            printenv > .env
+            printf "\n.env created with contents:\n"
+            cat .env
+
+################
+# Jobs
+################
+jobs:
+  ######################
+  # Node
+  ######################
+  node:
+    executor: node
+    steps:
+      - checkout
+      - jest
+
+  ######################
+  # Android
+  ######################
+  android:
+    executor: android
+    parameters:
+      pre_build:
+        description: Hooks that run before building. Useful for adjusting ENV vars or running scripts.
+        type: steps
+        default:
+          - decode_keystore
+          - set_branch_specific_env_vars
+          - create_env_file_from_vars
+      build:
+        description: The build command to run. This is typically a fastlane lane.
+        type: steps
+        default: []
+      post_build:
+        description: Hooks that run after building. Useful to do something else with the output.
+        type: steps
+        default: []
+    steps:
+      - checkout:
+          path: ~/react-native
+
+      - attach_workspace:
+          at: ~/react-native
+
+      - yarn_install_with_cache:
+          cache_key: v1
+
+      - bundle_install_with_cache:
+          cache_key: android-v1
+          working_directory: android
+
+      - download_gradle_dependencies_with_cache:
+          cache_key: android-jars-v1
+
+      - steps: << parameters.pre_build >>
+
+      - steps: << parameters.build >>
+
+      - store_artifacts:
+          path: android/app/build/outputs/apk
+
+      - steps: << parameters.post_build >>
+
+  ######################
+  # iOS
+  ######################
+  ios:
+    executor: ios
+    parameters:
+      pre_build:
+        description: Hooks that run before building. Useful for adjusting ENV vars or running scripts.
+        type: steps
+        default:
+          - set_branch_specific_env_vars
+          - create_env_file_from_vars
+      build:
+        description: The build command to run. This is typically a fastlane lane.
+        type: steps
+        default: []
+      post_build:
+        description: Hooks that run after building. Useful to do something else with the output.
+        type: steps
+        default: []
+    steps:
+      - checkout:
+          path: ~/react-native
+
+      - attach_workspace:
+          at: ~/react-native
+
+      - run:
+          name: set Ruby version
+          command: echo "ruby-2.4" > ~/.ruby-version
+
+      - yarn_install_with_cache:
+          cache_key: v1
+
+      - bundle_install_with_cache:
+          cache_key: ios-v1
+          working_directory: ios
+
+      - steps: << parameters.pre_build >>
+
+      - steps: << parameters.build >>
+
+      - run:
+          name: Copy outputs for artifacts
+          command: |
+            mkdir -p /tmp/artifacts
+            cp ios/*.ipa /tmp/artifacts/
+            cp ios/*.dSYM* /tmp/artifacts/
+
+      - store_artifacts:
+          path: /tmp/artifacts
+
+      - steps: << parameters.post_build >>
