@@ -134,8 +134,8 @@ examples:
                       working_directory: android
                       command: |
                         # APPCENTER_DISTRIBUTE_GROUP=Internal \
-                        APPCENTER_OWNER_NAME=HomeHero \
-                        APPCENTER_APP_NAME=HomeHero-Android \
+                        APPCENTER_OWNER_NAME=MyCompany \
+                        APPCENTER_APP_NAME=MyApp2 \
                         bundle exec fastlane adhoc build_number:${CIRCLE_BUILD_NUM}
             - react-native/ios:
                 name: ios (alpha)
@@ -255,8 +255,7 @@ commands:
     steps:
       - run:
           command: |
-            cat \<< 'EOF' \>> /tmp/setEnvVars.js
-            "#!/usr/bin/env node
+            echo "#!/usr/bin/env node
             const args = process.argv.slice(2);
             const branch = args[0];
             if (!branch) return;
@@ -271,8 +270,7 @@ commands:
                 process.env[newVar] = process.env[variable];
                 console.log(`adding ${variable} env var to ${newVar}`);
               }
-            });"
-            EOF
+            });" >> /tmp/setEnvVars.js
             node /tmp/setEnvVars.js ${CIRCLE_BRANCH}
 
   #################################
