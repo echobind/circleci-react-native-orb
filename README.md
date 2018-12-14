@@ -25,6 +25,9 @@ An orb for building React Native applications. Assumes the usage of Fastlane. By
 
 - Detox config coming soon
 
+## DOCS
+Generated documentation is available on the orb page: https://circleci.com/orbs/registry/orb/echobind/react-native
+
 ---
 
 ## Fastlane Configuration
