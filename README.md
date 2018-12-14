@@ -29,4 +29,4 @@ An orb for building React Native applications. Assumes the usage of Fastlane. By
 
 ## Fastlane Configuration
 
-You'll probably want to use it. Coming soon.
+You'll want to use it. Examples coming soon.

@@ -1,24 +1,7 @@
 version: 2.1
 
 description: |
-  "An orb for building React Native applications. Assumes the usage of Fastlane. By default, it:"
-  " * Installs dependencies with yarn and caches them"
-  " * Installs gem dependencies (typically for Fastlane) and caches them"
-  " * Installs gradle dependencies and caches them"
-  " * Runs jest tests via `yarn test:ci`, which is expected to leverage junit reporter like so: `jest --reporters=default --reporters=jest-junit`. This does require jest-junit to be installed as a devDependency."
-  " * Decodes an Android keystore from $ANDROID_ENCODED_KEYSTORE and saves to android.keystore for later use. encode with `cat <path-to-keystore-file> | base64 | pbcopy`"
-  " * Override ENV vars with branch-specific ENV vars if they exist. example: API_URL_BETA or BETA_API_URL would override API_URL (use pre_build hook to override this)"
-  " * Creates an .env file containing current ENV vars for use by react-native-config and others (use pre_build hook to override this)"
-  ""
-  "Other useful features:"
-  " * pre_build, build, and post_build hooks to customize your build process"
-  " * overridable test_steps for jest"
-  ""
-  "Caveats:"
-  " * Assumes that Fastlane will inject signing config for Android via gradle properties and uses the encoded keystore mentioned above."
-  ""
-  "TODO:"
-  " * Detox config coming soon"
+  An orb for building React Native applications. See README at https://github.com/echobind/circleci-react-native-orb/blob/master/README.md for more details.
 
 examples:
   ################
@@ -34,7 +17,7 @@ examples:
         version: 2
         main:
           jobs:
-            - react-native/nod
+            - react-native/node
             - react-native/android:
                 requires:
                   - node
@@ -42,7 +25,8 @@ examples:
                   - run:
                       name: fastlane adhoc android
                       working_directory: android
-                      command: bundle exec fastlane adhoc build_number:${CIRCLE_BUILD_NUM}
+                      command: |
+                        bundle exec fastlane adhoc build_number:${CIRCLE_BUILD_NUM}
             - react-native/ios:
                 requires:
                   - node
@@ -50,7 +34,8 @@ examples:
                   - run:
                       name: fastlane adhoc ios
                       working_directory: ios
-                      command: bundle exec fastlane adhoc build_number:${CIRCLE_BUILD_NUM}
+                      command: |
+                        bundle exec fastlane adhoc build_number:${CIRCLE_BUILD_NUM}
   ################
   # Typical ex.
   ################
@@ -92,7 +77,8 @@ examples:
                   - run:
                       name: fastlane adhoc android
                       working_directory: android
-                      command: bundle exec fastlane adhoc distribute:false build_number:${CIRCLE_BUILD_NUM}
+                      command: |
+                        bundle exec fastlane adhoc distribute:false build_number:${CIRCLE_BUILD_NUM}
 
             - react-native/ios:
                 name: ios
@@ -108,7 +94,8 @@ examples:
                   - run:
                       name: fastlane adhoc ios
                       working_directory: ios
-                      command: bundle exec fastlane adhoc distribute:false build_number:${CIRCLE_BUILD_NUM}
+                      command: |
+                        bundle exec fastlane adhoc distribute:false build_number:${CIRCLE_BUILD_NUM}
 
         ##################################################################
         # The alpha workflow, run on push to master
@@ -134,8 +121,8 @@ examples:
                       working_directory: android
                       command: |
                         # APPCENTER_DISTRIBUTE_GROUP=Internal \
-                        APPCENTER_OWNER_NAME=MyCompany \
-                        APPCENTER_APP_NAME=MyApp2 \
+                        APPCENTER_OWNER_NAME=HomeHero \
+                        APPCENTER_APP_NAME=HomeHero-Android \
                         bundle exec fastlane adhoc build_number:${CIRCLE_BUILD_NUM}
             - react-native/ios:
                 name: ios (alpha)
@@ -254,8 +241,10 @@ commands:
     description: 'Override ENV vars with branch-specific ENV vars if they exist. example: API_URL_BETA or BETA_API_URL would override API_URL'
     steps:
       - run:
+          name: Override ENV vars for branch
           command: |
-            echo "#!/usr/bin/env node
+            cat \<< 'EOF' \>> /tmp/setEnvVars.js
+            #!/usr/bin/env node
             const args = process.argv.slice(2);
             const branch = args[0];
             if (!branch) return;
@@ -270,7 +259,8 @@ commands:
                 process.env[newVar] = process.env[variable];
                 console.log(`adding ${variable} env var to ${newVar}`);
               }
-            });" >> /tmp/setEnvVars.js
+            });
+            EOF
             node /tmp/setEnvVars.js ${CIRCLE_BRANCH}
 
   #################################
