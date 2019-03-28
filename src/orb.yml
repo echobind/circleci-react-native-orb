@@ -17,8 +17,10 @@ examples:
         version: 2
         main:
           jobs:
-            - react-native/node
+            - react-native/node:
+                name: node
             - react-native/android:
+                name: android
                 requires:
                   - node
                 build:
@@ -28,6 +30,7 @@ examples:
                       command: |
                         bundle exec fastlane adhoc build_number:${CIRCLE_BUILD_NUM}
             - react-native/ios:
+                name: ios
                 requires:
                   - node
                 build:
@@ -373,6 +376,9 @@ commands:
         type: string
         default: android-jars-v1
     steps:
+      - run:
+          name: accept licenses
+          command: yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses || if [ $? -ne '141' ]; then exit $?; fi; #Captures SIGPIPE 141 error but still allow repeating "y" to accept all licenses
       - run:
           name: Check MD5 on files
           command: |
