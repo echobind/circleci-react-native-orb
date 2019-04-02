@@ -225,7 +225,7 @@ executors:
     parameters:
       xcode_version:
         type: string
-        default: '9.4.1'
+        default: '10.2.0'
     macos:
       xcode: <<parameters.xcode_version>>
     working_directory: ~/react-native
@@ -308,20 +308,20 @@ commands:
     parameters:
       cache_key:
         type: string
-        default: ios-v1
+        default: v1
       working_directory:
         type: string
         default: ios
     steps:
       - restore_cache:
-          key: bundle-<< parameters.cache_key >>-{{ checksum "<< parameters.working_directory >>/Gemfile.lock" }}-{{ arch }}
+          key: bundle-ios-<< parameters.cache_key >>-{{ checksum "<< parameters.working_directory >>/Gemfile.lock" }}-{{ arch }}
 
       - run:
           command: bundle install --path vendor/bundle
           working_directory: << parameters.working_directory >>
 
       - save_cache:
-          key: bundle-<< parameters.cache_key >>-{{ checksum "<< parameters.working_directory >>/Gemfile.lock" }}-{{ arch }}
+          key: bundle-ios-<< parameters.cache_key >>-{{ checksum "<< parameters.working_directory >>/Gemfile.lock" }}-{{ arch }}
           paths:
             - << parameters.working_directory >>/vendor/bundle
 
@@ -331,6 +331,10 @@ commands:
   jest:
     description: 'Runs jest'
     parameters:
+      cache_key:
+        description: a cache key used to clear caches of dependencies
+        type: string
+        default: 'v1'
       test_steps:
         description: Custom test steps for jest and reports. Defaults to using `yarn test:ci` & junit.
         type: steps
@@ -350,7 +354,7 @@ commands:
               path: reports/junit
     steps:
       - yarn_install_with_cache:
-          cache_key: v1
+          cache_key: << parameters.cache_key >>
       - steps: << parameters.test_steps >>
 
   #################################
@@ -375,7 +379,7 @@ commands:
     parameters:
       cache_key:
         type: string
-        default: android-jars-v1
+        default: v1
     steps:
       - run:
           name: accept licenses
@@ -388,7 +392,7 @@ commands:
             cat android/app/build.gradle | sed -n -e '/dependencies/,$p' > android.app.build.gradle.deps
 
       - restore_cache:
-          key: << parameters.cache_key >>-{{ checksum "android/build.gradle" }}-{{ checksum  "android.app.build.gradle.deps" }}
+          key: android-build-<< parameters.cache_key >>-{{ checksum "android/build.gradle" }}-{{ checksum  "android.app.build.gradle.deps" }}
 
       - run:
           name: Download Dependencies
@@ -396,7 +400,7 @@ commands:
           working_directory: android
 
       - save_cache:
-          key: << parameters.cache_key >>-{{ checksum "android/build.gradle" }}-{{ checksum  "android.app.build.gradle.deps" }}
+          key: android-build-<< parameters.cache_key >>-{{ checksum "android/build.gradle" }}-{{ checksum  "android.app.build.gradle.deps" }}
           paths:
             - ~/.gradle
 
@@ -422,17 +426,34 @@ jobs:
   # Node
   ######################
   node:
-    executor: node
+    parameters:
+      cache_key:
+        description: a cache key used to clear caches of dependencies
+        type: string
+        default: 'v1'
+      custom_executor:
+        description: Node executor used to run the build
+        type: executor
+        default: node
+    executor: << parameters.custom_executor >>
     steps:
       - checkout
-      - jest
+      - jest:
+          cache_key: <<parameters.cache_key >>
 
   ######################
   # Android
   ######################
   android:
-    executor: android
     parameters:
+      cache_key:
+        description: a cache key used to clear caches of dependencies
+        type: string
+        default: 'v1'
+      custom_executor:
+        description: Android executor used to run the build
+        type: executor
+        default: android
       pre_build:
         description: Hooks that run before building. Useful for adjusting ENV vars or running scripts.
         type: steps
@@ -448,6 +469,7 @@ jobs:
         description: Hooks that run after building. Useful to do something else with the output.
         type: steps
         default: []
+    executor: << parameters.custom_executor >>
     steps:
       - checkout:
           path: ~/react-native
@@ -456,14 +478,14 @@ jobs:
           at: ~/react-native
 
       - yarn_install_with_cache:
-          cache_key: v1
+          cache_key: << parameters.cache_key >>
 
       - bundle_install_with_cache:
-          cache_key: android-v1
+          cache_key: android-<< parameters.cache_key >>
           working_directory: android
 
       - download_gradle_dependencies_with_cache:
-          cache_key: android-jars-v1
+          cache_key: android-jars-<< parameters.cache_key >>
 
       - steps: << parameters.pre_build >>
 
@@ -478,8 +500,15 @@ jobs:
   # iOS
   ######################
   ios:
-    executor: ios
     parameters:
+      cache_key:
+        description: a cache key used to clear caches of dependencies
+        type: string
+        default: 'v1'
+      custom_executor:
+        description: iOS executor used to run the build
+        type: executor
+        default: ios
       pre_build:
         description: Hooks that run before building. Useful for adjusting ENV vars or running scripts.
         type: steps
@@ -494,6 +523,7 @@ jobs:
         description: Hooks that run after building. Useful to do something else with the output.
         type: steps
         default: []
+    executor: << parameters.custom_executor >>
     steps:
       - checkout:
           path: ~/react-native
@@ -506,10 +536,10 @@ jobs:
           command: echo "ruby-2.4" > ~/.ruby-version
 
       - yarn_install_with_cache:
-          cache_key: v1
+          cache_key: << parameters.cache_key >>
 
       - bundle_install_with_cache:
-          cache_key: ios-v1
+          cache_key: ios-<< parameters.cache_key >>
           working_directory: ios
 
       - steps: << parameters.pre_build >>
