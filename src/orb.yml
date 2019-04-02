@@ -477,8 +477,11 @@ jobs:
   # iOS
   ######################
   ios:
-    executor: ios
     parameters:
+      custom_executor:
+        description: iOS executor used to run the build
+        type: executor
+        default: ios
       pre_build:
         description: Hooks that run before building. Useful for adjusting ENV vars or running scripts.
         type: steps
@@ -493,6 +496,7 @@ jobs:
         description: Hooks that run after building. Useful to do something else with the output.
         type: steps
         default: []
+    executor: << parameters.custom_executor >>
     steps:
       - checkout:
           path: ~/react-native
