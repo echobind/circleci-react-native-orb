@@ -215,7 +215,7 @@ executors:
         default: '27'
     environment:
       FL_OUTPUT_DIR: output
-      _JAVA_OPTIONS: "-XX:MaxRAM=2048m -Xmx1024m"
+      _JAVA_OPTIONS: "-XX:MaxRAM=3072m -Xmx2048m"
     docker:
       - image: circleci/android:api-<<parameters.version>>-node8-alpha
     working_directory: ~/react-native
