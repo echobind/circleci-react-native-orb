@@ -224,7 +224,7 @@ executors:
     parameters:
       xcode_version:
         type: string
-        default: '10.2.0'
+        default: '10.1.0'
     macos:
       xcode: <<parameters.xcode_version>>
     working_directory: ~/react-native
