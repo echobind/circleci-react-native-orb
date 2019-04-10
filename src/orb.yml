@@ -204,33 +204,48 @@ executors:
       version:
         type: string
         default: '8'
+      resource_class:
+      # requires a support request to enable the resource_class parameter - default = medium
+      # https://circleci.com/docs/2.0/configuration-reference/#resource_class
+        type: string
+        default: medium
     docker:
       - image: circleci/node:<<parameters.version>>
     working_directory: ~/react-native
-
+    resource_class: <<parameters.resource_class>>
   android:
     parameters:
       version:
         type: string
         default: '27'
+      java_options:
+        type: string
+        # sets the min and max memory for builds
+        default: '-Xms1048m -Xmx2048m'
+      resource_class:
+        type: string
+        default: medium
     environment:
       FL_OUTPUT_DIR: output
-      _JAVA_OPTIONS: "-XX:MaxRAM=2048m -Xmx1024m"
+      _JAVA_OPTIONS: <<parameters.java_options>>
     docker:
       - image: circleci/android:api-<<parameters.version>>-node8-alpha
     working_directory: ~/react-native
-
+    resource_class: <<parameters.resource_class>>
   ios:
     parameters:
       xcode_version:
         type: string
         default: '10.1.0'
+      resource_class:
+        type: string
+        default: medium
     macos:
       xcode: <<parameters.xcode_version>>
     working_directory: ~/react-native
     # use a --login shell so our "set Ruby version" command gets picked up for later steps
     shell: /bin/bash --login -o pipefail
-
+    resource_class: <<parameters.resource_class>>
 ################
 # Commands
 ################
