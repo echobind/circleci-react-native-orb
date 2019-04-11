@@ -252,34 +252,50 @@ executors:
 commands:
   #################################
   # Override ENV vars with
-  # branch-specific ENV vars if
+  # job-specific ENV vars if
   # they exist.
   #################################
-  set_branch_specific_env_vars:
-    description: 'Override ENV vars with branch-specific ENV vars if they exist. example: API_URL_BETA or BETA_API_URL would override API_URL'
+  set_job_specific_env_vars:
+    description: 'Override ENV vars with job-specific ENV vars if they exist. example: BETA_API_URL would override API_URL'
+    parameters:
+      environment_prefix:
+        type: string
+        default: ''
     steps:
       - run:
-          name: Override ENV vars for branch
+          name: Override ENV vars for job
+          environment:
+              JOB_ENV_PREFIX: << parameters.environment_prefix >>
           command: |
-            cat \<< 'EOF' \>> /tmp/setEnvVars.js
-            #!/usr/bin/env node
-            const args = process.argv.slice(2);
-            const branch = args[0];
-            if (!branch) return;
+            if [ ! $JOB_ENV_PREFIX ];
+              then
+                echo "No environment prefix parameter was passed. Using default env values."
+                
+                printenv > .env
 
-            const uppercasedBranch = branch.toUpperCase();
-            const variables = Object.keys(process.env).filter(e => e.includes(uppercasedBranch));
+                cat .env
+                
+                exit 0;
+            fi
 
-            variables.forEach((variable, index) => {
-              const newVar = variable.replace(`${uppercasedBranch}_`, '');
+            PREFIX="$(echo $JOB_ENV_PREFIX | tr '[a-z]' '[A-Z]')_"
+            
+            for line in $(printenv);
+            do
+                IFS== read -r key value \<<< "$line"
+                
+                if [[ $key == *"$PREFIX"* ]];
+                    then
+                        echo $key
+                        UNPREFIXED=${key/"$PREFIX"/}
+                        export $UNPREFIXED=$value
+                        echo "Overriding current $UNPREFIXED value with $key value."
+                fi
+            done
 
-              if (process.env[variable]) {
-                process.env[newVar] = process.env[variable];
-                console.log(`adding ${variable} env var to ${newVar}`);
-              }
-            });
-            EOF
-            node /tmp/setEnvVars.js ${CIRCLE_BRANCH}
+            printenv > .env
+
+            cat .env
 
   #################################
   # Yarn install with cache
@@ -418,20 +434,6 @@ commands:
           paths:
             - ~/.gradle
 
-  #################################
-  # Create env file from ENV vars
-  #################################
-  create_env_file_from_vars:
-    description: Creates an .env file containing available env vars (required by react-native-config and others)
-    steps:
-      - run:
-          name: Create .env from vars
-          command: |
-            printf "Creating an .env file:\n"
-            printenv > .env
-            printf "\n.env created with contents:\n"
-            cat .env
-
 ################
 # Jobs
 ################
@@ -449,6 +451,10 @@ jobs:
         description: Node executor used to run the build
         type: executor
         default: node
+      environment_prefix:
+        description: Prefix to append to job env variables
+        type: string
+        default: ''
     executor: << parameters.custom_executor >>
     steps:
       - checkout
@@ -468,13 +474,14 @@ jobs:
         description: Android executor used to run the build
         type: executor
         default: android
+      environment_prefix:
+        description: Prefix to append to job env variables
+        type: string
+        default: ''
       pre_build:
         description: Hooks that run before building. Useful for adjusting ENV vars or running scripts.
         type: steps
-        default:
-          - decode_keystore
-          - set_branch_specific_env_vars
-          - create_env_file_from_vars
+        default: []
       build:
         description: The build command to run. This is typically a fastlane lane.
         type: steps
@@ -503,6 +510,11 @@ jobs:
 
       - steps: << parameters.pre_build >>
 
+      - decode_keystore
+
+      - set_job_specific_env_vars:
+            environment_prefix: << parameters.environment_prefix >>
+
       - steps: << parameters.build >>
 
       - store_artifacts:
@@ -523,12 +535,14 @@ jobs:
         description: iOS executor used to run the build
         type: executor
         default: ios
+      environment_prefix:
+        description: Prefix to append to job env variables
+        type: string
+        default: ''
       pre_build:
         description: Hooks that run before building. Useful for adjusting ENV vars or running scripts.
         type: steps
-        default:
-          - set_branch_specific_env_vars
-          - create_env_file_from_vars
+        default: []
       build:
         description: The build command to run. This is typically a fastlane lane.
         type: steps
@@ -558,6 +572,9 @@ jobs:
 
       - steps: << parameters.pre_build >>
 
+      - set_job_specific_env_vars:
+            environment_prefix: << parameters.environment_prefix >>
+      
       - steps: << parameters.build >>
 
       - run:
