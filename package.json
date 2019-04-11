@@ -6,7 +6,7 @@
     "validate": "circleci orb validate ./src/orb.yml",
     "publish:dev": "circleci orb publish ./src/orb.yml echobind/react-native@dev:test",
     "promote": "circleci orb publish promote echobind/react-native@dev:test",
-    "publish": "circleci orb publish increment ./src/orb.yml echobind/react-native"
+    "publish:prod": "circleci orb publish increment ./src/orb.yml echobind/react-native"
   },
   "author": "Chris Ball",
   "license": "ISC"
