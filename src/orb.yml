@@ -211,7 +211,6 @@ executors:
         default: medium
     docker:
       - image: circleci/node:<<parameters.version>>
-    working_directory: ~/react-native
     resource_class: <<parameters.resource_class>>
   android:
     parameters:
@@ -230,7 +229,6 @@ executors:
       _JAVA_OPTIONS: <<parameters.java_options>>
     docker:
       - image: circleci/android:api-<<parameters.version>>-node8-alpha
-    working_directory: ~/react-native
     resource_class: <<parameters.resource_class>>
   ios:
     parameters:
@@ -242,7 +240,6 @@ executors:
         default: medium
     macos:
       xcode: <<parameters.xcode_version>>
-    working_directory: ~/react-native
     # use a --login shell so our "set Ruby version" command gets picked up for later steps
     shell: /bin/bash --login -o pipefail
     resource_class: <<parameters.resource_class>>
@@ -265,7 +262,7 @@ commands:
       - run:
           name: Override ENV vars for job
           environment:
-              JOB_ENV_PREFIX: << parameters.environment_prefix >>
+              JOB_ENV_PREFIX: <<parameters.environment_prefix>>
           command: |
             if [ ! $JOB_ENV_PREFIX ];
               then
@@ -282,7 +279,7 @@ commands:
             
             for line in $(printenv);
             do
-                IFS== read -r key value \<<< "$line"
+                IFS== read -r key value \<<<"$line"
                 
                 if [[ $key == *"$PREFIX"* ]];
                     then
@@ -306,27 +303,31 @@ commands:
       cache_key:
         type: string
         default: v1
+      working_directory:
+        description: Directory in which to run the steps
+        type: string
+        default: ~/react-native
     steps:
       - restore_cache:
-          key: yarn-<< parameters.cache_key >>-{{ checksum "yarn.lock" }}-{{ arch }}
+          key: yarn-<<parameters.cache_key>>-{{ checksum "yarn.lock" }}-{{ arch }}
 
       - restore_cache:
-          key: node-<< parameters.cache_key >>-{{ checksum "package.json" }}-{{ arch }}
+          key: node-<<parameters.cache_key>>-{{ checksum "package.json" }}-{{ arch }}
 
       - run: yarn install
 
       - save_cache:
-          key: yarn-<< parameters.cache_key >>-{{ checksum "yarn.lock" }}-{{ arch }}
+          key: yarn-<<parameters.cache_key>>-{{ checksum "yarn.lock" }}-{{ arch }}
           paths:
             - ~/.cache/yarn
 
       - save_cache:
-          key: node-<< parameters.cache_key >>-{{ checksum "package.json" }}-{{ arch }}
+          key: node-<<parameters.cache_key>>-{{ checksum "package.json" }}-{{ arch }}
           paths:
             - node_modules
 
       - persist_to_workspace:
-          root: ~/react-native
+          root: << parameters.working_directory >>
           paths:
             - node_modules
 
@@ -344,16 +345,16 @@ commands:
         default: ios
     steps:
       - restore_cache:
-          key: bundle-ios-<< parameters.cache_key >>-{{ checksum "<< parameters.working_directory >>/Gemfile.lock" }}-{{ arch }}
+          key: bundle-ios-<<parameters.cache_key>>-{{ checksum "<<parameters.working_directory>>/Gemfile.lock" }}-{{ arch }}
 
       - run:
           command: bundle install --path vendor/bundle
-          working_directory: << parameters.working_directory >>
+          working_directory: <<parameters.working_directory>>
 
       - save_cache:
-          key: bundle-ios-<< parameters.cache_key >>-{{ checksum "<< parameters.working_directory >>/Gemfile.lock" }}-{{ arch }}
+          key: bundle-ios-<<parameters.cache_key>>-{{ checksum "<<parameters.working_directory>>/Gemfile.lock" }}-{{ arch }}
           paths:
-            - << parameters.working_directory >>/vendor/bundle
+            - <<parameters.working_directory>>/vendor/bundle
 
   #################################
   # Jest tests
@@ -384,8 +385,8 @@ commands:
               path: reports/junit
     steps:
       - yarn_install_with_cache:
-          cache_key: << parameters.cache_key >>
-      - steps: << parameters.test_steps >>
+          cache_key: <<parameters.cache_key>>
+      - steps: <<parameters.test_steps>>
 
   #################################
   # Decode android keystore
@@ -422,7 +423,7 @@ commands:
             cat android/app/build.gradle | sed -n -e '/dependencies/,$p' > android.app.build.gradle.deps
 
       - restore_cache:
-          key: android-build-<< parameters.cache_key >>-{{ checksum "android/build.gradle" }}-{{ checksum  "android.app.build.gradle.deps" }}
+          key: android-build-<<parameters.cache_key>>-{{ checksum "android/build.gradle" }}-{{ checksum  "android.app.build.gradle.deps" }}
 
       - run:
           name: Download Dependencies
@@ -430,7 +431,7 @@ commands:
           working_directory: android
 
       - save_cache:
-          key: android-build-<< parameters.cache_key >>-{{ checksum "android/build.gradle" }}-{{ checksum  "android.app.build.gradle.deps" }}
+          key: android-build-<<parameters.cache_key>>-{{ checksum "android/build.gradle" }}-{{ checksum  "android.app.build.gradle.deps" }}
           paths:
             - ~/.gradle
 
@@ -451,15 +452,20 @@ jobs:
         description: Node executor used to run the build
         type: executor
         default: node
+      working_directory:
+        description: Directory in which to run the steps
+        type: string
+        default: ~/react-native
       environment_prefix:
         description: Prefix to append to job env variables
         type: string
         default: ''
-    executor: << parameters.custom_executor >>
+    executor: <<parameters.custom_executor>>
+    working_directory: <<parameters.working_directory>>
     steps:
       - checkout
       - jest:
-          cache_key: <<parameters.cache_key >>
+          cache_key: <<parameters.cache_key>>
 
   ######################
   # Android
@@ -474,6 +480,10 @@ jobs:
         description: Android executor used to run the build
         type: executor
         default: android
+      working_directory:
+        description: Directory in which to run the steps
+        type: string
+        default: ~/react-native
       environment_prefix:
         description: Prefix to append to job env variables
         type: string
@@ -490,37 +500,38 @@ jobs:
         description: Hooks that run after building. Useful to do something else with the output.
         type: steps
         default: []
-    executor: << parameters.custom_executor >>
+    executor: <<parameters.custom_executor>>
+    working_directory: <<parameters.working_directory>>
     steps:
       - checkout:
-          path: ~/react-native
+          path: <<parameters.working_directory>>
 
       - attach_workspace:
-          at: ~/react-native
+          at: <<parameters.working_directory>>
 
       - yarn_install_with_cache:
-          cache_key: << parameters.cache_key >>
+          cache_key: <<parameters.cache_key>>
 
       - bundle_install_with_cache:
-          cache_key: android-<< parameters.cache_key >>
+          cache_key: android-<<parameters.cache_key>>
           working_directory: android
 
       - download_gradle_dependencies_with_cache:
-          cache_key: android-jars-<< parameters.cache_key >>
+          cache_key: android-jars-<<parameters.cache_key>>
 
-      - steps: << parameters.pre_build >>
+      - steps: <<parameters.pre_build>>
 
       - decode_keystore
 
       - set_job_specific_env_vars:
-            environment_prefix: << parameters.environment_prefix >>
+            environment_prefix: <<parameters.environment_prefix>>
 
-      - steps: << parameters.build >>
+      - steps: <<parameters.build>>
 
       - store_artifacts:
           path: android/app/build/outputs/apk
 
-      - steps: << parameters.post_build >>
+      - steps: <<parameters.post_build>>
 
   ######################
   # iOS
@@ -535,6 +546,10 @@ jobs:
         description: iOS executor used to run the build
         type: executor
         default: ios
+      working_directory:
+        description: Directory in which to run the steps
+        type: string
+        default: ~/react-native
       environment_prefix:
         description: Prefix to append to job env variables
         type: string
@@ -551,31 +566,32 @@ jobs:
         description: Hooks that run after building. Useful to do something else with the output.
         type: steps
         default: []
-    executor: << parameters.custom_executor >>
+    executor: <<parameters.custom_executor>>
+    working_directory: <<parameters.working_directory>>
     steps:
       - checkout:
-          path: ~/react-native
+          path: <<parameters.working_directory>>
 
       - attach_workspace:
-          at: ~/react-native
+          at: <<parameters.working_directory>>
 
       - run:
           name: set Ruby version
           command: echo "ruby-2.4" > ~/.ruby-version
 
       - yarn_install_with_cache:
-          cache_key: << parameters.cache_key >>
+          cache_key: <<parameters.cache_key>>
 
       - bundle_install_with_cache:
-          cache_key: ios-<< parameters.cache_key >>
+          cache_key: ios-<<parameters.cache_key>>
           working_directory: ios
 
-      - steps: << parameters.pre_build >>
+      - steps: <<parameters.pre_build>>
 
       - set_job_specific_env_vars:
-            environment_prefix: << parameters.environment_prefix >>
+            environment_prefix: <<parameters.environment_prefix>>
       
-      - steps: << parameters.build >>
+      - steps: <<parameters.build>>
 
       - run:
           name: Copy outputs for artifacts
@@ -587,4 +603,4 @@ jobs:
       - store_artifacts:
           path: /tmp/artifacts
 
-      - steps: << parameters.post_build >>
+      - steps: <<parameters.post_build>>
