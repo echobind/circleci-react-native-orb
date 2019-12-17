@@ -279,7 +279,7 @@ commands:
             
             for line in $(printenv);
             do
-                IFS== read -r key value \<<<"$line"
+                IFS== read -r key value \<<< "$line"
                 
                 if [[ $key == *"$PREFIX"* ]];
                     then
@@ -327,7 +327,7 @@ commands:
             - node_modules
 
       - persist_to_workspace:
-          root: << parameters.working_directory >>
+          root: <<parameters.working_directory>>
           paths:
             - node_modules
 
