@@ -229,7 +229,7 @@ executors:
       FL_OUTPUT_DIR: output
       _JAVA_OPTIONS: <<parameters.java_options>>
     docker:
-      - image: circleci/android:api-<<parameters.version>>-node8-alpha
+      - image: circleci/android:api-<<parameters.version>>-node
     working_directory: ~/react-native
     resource_class: <<parameters.resource_class>>
   ios:
